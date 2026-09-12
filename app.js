@@ -292,17 +292,12 @@
 
   function renderLiveColor() {
     if (!state.liveColor) return;
-    els.collectBtn.style.background = rgbToCss(state.liveColor);
-    els.collectBtn.style.color = contrastingTextColor(state.liveColor);
-
-    // Preview what tapping Blend would produce: the live color mixed with
-    // whatever is currently collected (or just the live color if nothing
-    // has been collected yet this round).
-    const blendPreview = state.collectedColor
-      ? blendColors(state.liveColor, state.collectedColor)
-      : state.liveColor;
-    els.blendBtn.style.background = rgbToCss(blendPreview);
-    els.blendBtn.style.color = contrastingTextColor(blendPreview);
+    const css = rgbToCss(state.liveColor);
+    const textColor = contrastingTextColor(state.liveColor);
+    els.collectBtn.style.background = css;
+    els.collectBtn.style.color = textColor;
+    els.blendBtn.style.background = css;
+    els.blendBtn.style.color = textColor;
   }
 
   function renderCollected() {
