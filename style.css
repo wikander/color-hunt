@@ -163,13 +163,21 @@ body {
   transition: background-color 0.2s linear;
 }
 
-/* The live band is a real button: tapping it collects the current color */
+/* The live band is a real button: tapping it collects the current color.
+   iOS Safari ignores background-color on buttons unless the native
+   appearance is explicitly turned off, which is why this needs both
+   -webkit-appearance and appearance reset here. */
 .live-third {
   width: 100%;
   border: none;
   font: inherit;
+  color: inherit;
+  text-align: inherit;
   padding: 0;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
   -webkit-tap-highlight-color: transparent;
 }
 
