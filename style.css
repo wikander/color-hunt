@@ -152,37 +152,12 @@ body {
   cursor: pointer;
 }
 
-/* The real-world and goal color bands ARE the color — full-bleed background */
-.color-third {
+/* Live band: Collect (left) takes the raw camera color, Blend (right)
+   takes a preview of camera color + currently collected color mixed
+   together. Both are full-bleed color swatches AND real buttons. */
+.live-row {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  color: var(--text);
-  transition: background-color 0.2s linear;
-}
-
-/* The live band is a real button: tapping it collects the current color.
-   iOS Safari ignores background-color on buttons unless the native
-   appearance is explicitly turned off, which is why this needs both
-   -webkit-appearance and appearance reset here. */
-.live-third {
-  width: 100%;
-  border: none;
-  font: inherit;
-  color: inherit;
-  text-align: inherit;
-  padding: 0;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  background: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.live-third:active {
-  filter: brightness(0.88);
+  flex-direction: row;
 }
 
 .third-label {
@@ -190,11 +165,6 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   opacity: 0.85;
-}
-
-.color-name {
-  font-size: 1rem;
-  font-weight: 700;
 }
 
 /* Bottom band: goal color (left) and most recently collected color (right) */
@@ -216,6 +186,25 @@ body {
 
 .goal-half {
   background: rgba(255,255,255,0.04);
+}
+
+/* iOS Safari ignores background-color on buttons unless the native
+   appearance is explicitly turned off, which is why this needs both
+   -webkit-appearance and appearance reset here. */
+.tap-half {
+  border: none;
+  font: inherit;
+  text-align: inherit;
+  padding: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tap-half:active {
+  filter: brightness(0.88);
 }
 
 .collected-half {

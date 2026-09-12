@@ -37,9 +37,14 @@
         <button id="btn-quit" class="icon-btn quit-btn" title="Quit">✕</button>
       </div>
 
-      <button type="button" class="third color-third live-third" id="live-third" aria-label="Tap to collect this color">
-        <span class="third-label">Live — tap to collect</span>
-      </button>
+      <div class="third live-row">
+        <button type="button" class="half tap-half" id="collect-btn" aria-label="Collect this color">
+          <span class="third-label">Collect</span>
+        </button>
+        <button type="button" class="half tap-half" id="blend-btn" aria-label="Blend this color with the collected color">
+          <span class="third-label">Blend</span>
+        </button>
+      </div>
 
       <div class="third bottom-third">
         <div class="half goal-half" id="target-third">

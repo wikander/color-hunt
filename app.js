@@ -53,7 +53,8 @@
     canvas: document.getElementById('sample-canvas'),
 
     targetThird: document.getElementById('target-third'),
-    liveThird: document.getElementById('live-third'),
+    collectBtn: document.getElementById('collect-btn'),
+    blendBtn: document.getElementById('blend-btn'),
     collectedHalf: document.getElementById('collected-half'),
 
     btnQuit: document.getElementById('btn-quit'),
@@ -79,6 +80,10 @@
   function colorDistance(a, b) {
     const dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
     return Math.sqrt(dr * dr + dg * dg + db * db);
+  }
+
+  function averageColor(a, b) {
+    return { r: (a.r + b.r) / 2, g: (a.g + b.g) / 2, b: (a.b + b.b) / 2 };
   }
 
   // Picks black or white text so labels stay legible against any background color.
@@ -213,8 +218,17 @@
 
   function renderLiveColor() {
     if (!state.liveColor) return;
-    els.liveThird.style.background = rgbToCss(state.liveColor);
-    els.liveThird.style.color = contrastingTextColor(state.liveColor);
+    els.collectBtn.style.background = rgbToCss(state.liveColor);
+    els.collectBtn.style.color = contrastingTextColor(state.liveColor);
+
+    // Preview what tapping Blend would produce: the live color mixed with
+    // whatever is currently collected (or just the live color if nothing
+    // has been collected yet this round).
+    const blendPreview = state.collectedColor
+      ? averageColor(state.liveColor, state.collectedColor)
+      : state.liveColor;
+    els.blendBtn.style.background = rgbToCss(blendPreview);
+    els.blendBtn.style.color = contrastingTextColor(blendPreview);
   }
 
   function renderCollected() {
@@ -239,16 +253,18 @@
     state.collectedColor = null;
     renderTarget();
     renderCollected();
+    renderLiveColor();
     renderStats();
     els.winOverlay.hidden = true;
   }
 
-  function capture() {
+  function commitCollectedColor(nextColor, triggerEl) {
     if (!state.liveColor || els.winOverlay.hidden === false) return;
-    state.collectedColor = state.liveColor;
+    state.collectedColor = nextColor;
     state.attempts++;
     stats.totalAttempts++;
     renderCollected();
+    renderLiveColor();
     renderStats();
 
     const dist = colorDistance(state.collectedColor, state.target);
@@ -257,11 +273,23 @@
     if (dist <= threshold) {
       onRoundWon();
     } else {
-      els.liveThird.animate(
+      triggerEl.animate(
         [{ filter: 'brightness(1)' }, { filter: 'brightness(0.7)' }, { filter: 'brightness(1)' }],
         { duration: 220 }
       );
     }
+  }
+
+  function collect() {
+    commitCollectedColor(state.liveColor, els.collectBtn);
+  }
+
+  function blend() {
+    if (!state.liveColor) return;
+    const next = state.collectedColor
+      ? averageColor(state.liveColor, state.collectedColor)
+      : state.liveColor;
+    commitCollectedColor(next, els.blendBtn);
   }
 
   function onRoundWon() {
@@ -316,7 +344,8 @@
 
   els.btnStart.addEventListener('click', goToGame);
   els.btnQuit.addEventListener('click', goToStart);
-  els.liveThird.addEventListener('click', capture);
+  els.collectBtn.addEventListener('click', collect);
+  els.blendBtn.addEventListener('click', blend);
   els.btnNext.addEventListener('click', newRound);
 
   document.addEventListener('visibilitychange', () => {
