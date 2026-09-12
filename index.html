@@ -27,39 +27,45 @@
     <p id="start-error" class="error-text" hidden></p>
   </section>
 
-  <!-- Game screen -->
+  <!-- Game screen: three equal bands, top to bottom = camera / real-world color / goal color -->
   <section id="screen-game" class="screen" hidden>
-    <video id="camera" autoplay playsinline muted></video>
-    <canvas id="sample-canvas" hidden></canvas>
+    <div class="thirds">
 
-    <div class="hud-top">
-      <div class="target-card">
-        <span class="hud-label">Find this color</span>
-        <div id="target-swatch" class="swatch swatch-lg"></div>
+      <div class="third camera-third">
+        <video id="camera" autoplay playsinline muted></video>
+        <canvas id="sample-canvas" hidden></canvas>
+
+        <div class="camera-overlay">
+          <div class="overlay-top">
+            <div class="proximity-wrap">
+              <div class="proximity-bar">
+                <div id="proximity-fill" class="proximity-fill"></div>
+              </div>
+              <span id="proximity-label" class="proximity-label">Point at something…</span>
+            </div>
+            <button id="btn-quit" class="icon-btn" title="Quit">✕</button>
+          </div>
+
+          <div class="overlay-bottom">
+            <div class="stats-card">
+              <span class="stat-line"><strong id="stat-attempts">0</strong> tries</span>
+              <span class="stat-line"><strong id="stat-rounds">0</strong> found</span>
+            </div>
+            <button id="btn-capture" class="capture-btn" aria-label="Capture color"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="third color-third" id="live-third">
+        <span class="third-label">Real world</span>
+        <span id="live-name" class="color-name"></span>
+      </div>
+
+      <div class="third color-third" id="target-third">
+        <span class="third-label">Find this color</span>
         <span id="target-name" class="color-name"></span>
       </div>
-      <button id="btn-quit" class="icon-btn" title="Quit">✕</button>
-    </div>
 
-    <div class="proximity-wrap">
-      <div class="proximity-bar">
-        <div id="proximity-fill" class="proximity-fill"></div>
-      </div>
-      <span id="proximity-label" class="proximity-label">Point at something…</span>
-    </div>
-
-    <div class="hud-bottom">
-      <div class="live-card">
-        <div id="live-swatch" class="swatch swatch-sm"></div>
-        <span id="live-name" class="color-name small"></span>
-      </div>
-
-      <button id="btn-capture" class="capture-btn" aria-label="Capture color"></button>
-
-      <div class="stats-card">
-        <span class="stat-line"><strong id="stat-attempts">0</strong> tries</span>
-        <span class="stat-line"><strong id="stat-rounds">0</strong> found</span>
-      </div>
     </div>
   </section>
 

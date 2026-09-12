@@ -16,6 +16,14 @@
   const SAMPLE_HEIGHT = 36;
   const HISTOGRAM_BITS = 4; // per channel -> 16 levels/channel, 4096 bins
 
+  // Smoothing for the live camera color: a small hand shake changes the
+  // dominant color only a little between frames, so it's damped heavily
+  // (SLOW). A deliberate move to point at something new changes it a lot,
+  // so those bigger jumps are allowed through faster (FAST).
+  const SMOOTH_ALPHA_SLOW = 0.12;
+  const SMOOTH_ALPHA_FAST = 0.5;
+  const SMOOTH_JUMP_DISTANCE = 60;
+
   // A modest palette of everyday color names, used only to give kids a
   // friendly label next to each swatch (nearest-neighbor by RGB distance).
   const NAMED_COLORS = [
@@ -55,9 +63,9 @@
     video: document.getElementById('camera'),
     canvas: document.getElementById('sample-canvas'),
 
-    targetSwatch: document.getElementById('target-swatch'),
+    targetThird: document.getElementById('target-third'),
     targetName: document.getElementById('target-name'),
-    liveSwatch: document.getElementById('live-swatch'),
+    liveThird: document.getElementById('live-third'),
     liveName: document.getElementById('live-name'),
 
     proximityFill: document.getElementById('proximity-fill'),
@@ -82,12 +90,18 @@
   // ---------- Color helpers ----------
 
   function rgbToCss({ r, g, b }) {
-    return `rgb(${r}, ${g}, ${b})`;
+    return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
   }
 
   function colorDistance(a, b) {
     const dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
     return Math.sqrt(dr * dr + dg * dg + db * db);
+  }
+
+  // Picks black or white text so labels stay legible against any background color.
+  function contrastingTextColor({ r, g, b }) {
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return luminance > 150 ? '#14161a' : '#f5f5f5';
   }
 
   function randomColor() {
@@ -192,24 +206,43 @@
     }
   }
 
+  // Exponential moving average toward the newly sampled color. Small
+  // per-frame deltas (hand shake) move slowly; a big delta (pointing at
+  // something new) is treated as deliberate and catches up quickly.
+  function updateLiveColor(sample) {
+    if (!state.liveColor) {
+      state.liveColor = sample;
+      return;
+    }
+    const jump = colorDistance(sample, state.liveColor);
+    const alpha = jump > SMOOTH_JUMP_DISTANCE ? SMOOTH_ALPHA_FAST : SMOOTH_ALPHA_SLOW;
+    state.liveColor = {
+      r: state.liveColor.r + alpha * (sample.r - state.liveColor.r),
+      g: state.liveColor.g + alpha * (sample.g - state.liveColor.g),
+      b: state.liveColor.b + alpha * (sample.b - state.liveColor.b),
+    };
+  }
+
   function sampleFrame() {
     if (els.video.readyState < 2) return;
     ctx.drawImage(els.video, 0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT);
     const imageData = ctx.getImageData(0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT);
-    state.liveColor = dominantColor(imageData);
+    updateLiveColor(dominantColor(imageData));
     renderLiveColor();
   }
 
   // ---------- Rendering ----------
 
   function renderTarget() {
-    els.targetSwatch.style.background = rgbToCss(state.target);
+    els.targetThird.style.background = rgbToCss(state.target);
+    els.targetThird.style.color = contrastingTextColor(state.target);
     els.targetName.textContent = nearestColorName(state.target);
   }
 
   function renderLiveColor() {
     if (!state.liveColor) return;
-    els.liveSwatch.style.background = rgbToCss(state.liveColor);
+    els.liveThird.style.background = rgbToCss(state.liveColor);
+    els.liveThird.style.color = contrastingTextColor(state.liveColor);
     els.liveName.textContent = nearestColorName(state.liveColor);
 
     const dist = colorDistance(state.liveColor, state.target);
