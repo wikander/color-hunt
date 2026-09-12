@@ -41,10 +41,10 @@
 
   const state = {
     difficulty: 'medium',
-    target: null,        // {r,g,b}
-    liveColor: null,     // {r,g,b}
+    target: null,         // {r,g,b}
+    liveColor: null,      // {r,g,b} - continuously updated, smoothed camera color
+    collectedColor: null, // {r,g,b} - snapshot taken on the last tap-to-collect
     attempts: 0,
-    bestAttemptDistance: Infinity,
     stream: null,
     sampleTimer: null,
   };
@@ -68,14 +68,12 @@
     liveThird: document.getElementById('live-third'),
     liveName: document.getElementById('live-name'),
 
-    proximityFill: document.getElementById('proximity-fill'),
-    proximityLabel: document.getElementById('proximity-label'),
+    collectedHalf: document.getElementById('collected-half'),
+    collectedName: document.getElementById('collected-name'),
 
-    btnCapture: document.getElementById('btn-capture'),
     btnQuit: document.getElementById('btn-quit'),
 
     statAttempts: document.getElementById('stat-attempts'),
-    statRounds: document.getElementById('stat-rounds'),
 
     winOverlay: document.getElementById('win-overlay'),
     winAttempts: document.getElementById('win-attempts'),
@@ -244,26 +242,22 @@
     els.liveThird.style.background = rgbToCss(state.liveColor);
     els.liveThird.style.color = contrastingTextColor(state.liveColor);
     els.liveName.textContent = nearestColorName(state.liveColor);
+  }
 
-    const dist = colorDistance(state.liveColor, state.target);
-    const threshold = DIFFICULTY_THRESHOLDS[state.difficulty];
-    const closeness = Math.max(0, Math.min(1, 1 - dist / 441.7));
-    els.proximityFill.style.width = `${Math.round(closeness * 100)}%`;
-
-    if (dist <= threshold) {
-      els.proximityLabel.textContent = '🔥 Right there — capture it!';
-    } else if (dist <= threshold * 1.6) {
-      els.proximityLabel.textContent = 'Getting warmer…';
-    } else if (dist <= threshold * 2.6) {
-      els.proximityLabel.textContent = 'Keep looking…';
+  function renderCollected() {
+    if (state.collectedColor) {
+      els.collectedHalf.style.background = rgbToCss(state.collectedColor);
+      els.collectedHalf.style.color = contrastingTextColor(state.collectedColor);
+      els.collectedName.textContent = nearestColorName(state.collectedColor);
     } else {
-      els.proximityLabel.textContent = 'Cold — try somewhere else';
+      els.collectedHalf.style.background = '';
+      els.collectedHalf.style.color = '';
+      els.collectedName.textContent = '—';
     }
   }
 
   function renderStats() {
     els.statAttempts.textContent = state.attempts;
-    els.statRounds.textContent = stats.roundsWon;
   }
 
   // ---------- Game flow ----------
@@ -271,25 +265,29 @@
   function newRound() {
     state.target = randomColor();
     state.attempts = 0;
+    state.collectedColor = null;
     renderTarget();
+    renderCollected();
     renderStats();
     els.winOverlay.hidden = true;
   }
 
   function capture() {
     if (!state.liveColor || els.winOverlay.hidden === false) return;
+    state.collectedColor = state.liveColor;
     state.attempts++;
     stats.totalAttempts++;
+    renderCollected();
     renderStats();
 
-    const dist = colorDistance(state.liveColor, state.target);
+    const dist = colorDistance(state.collectedColor, state.target);
     const threshold = DIFFICULTY_THRESHOLDS[state.difficulty];
 
     if (dist <= threshold) {
       onRoundWon();
     } else {
-      els.btnCapture.animate(
-        [{ transform: 'scale(1)' }, { transform: 'scale(0.85)' }, { transform: 'scale(1)' }],
+      els.liveThird.animate(
+        [{ filter: 'brightness(1)' }, { filter: 'brightness(0.7)' }, { filter: 'brightness(1)' }],
         { duration: 220 }
       );
     }
@@ -337,8 +335,9 @@
       state.sampleTimer = null;
     }
     stopCamera();
+    state.liveColor = null;
+    newRound();
     els.screenGame.hidden = true;
-    els.winOverlay.hidden = true;
     els.screenStart.hidden = false;
   }
 
@@ -346,7 +345,7 @@
 
   els.btnStart.addEventListener('click', goToGame);
   els.btnQuit.addEventListener('click', goToStart);
-  els.btnCapture.addEventListener('click', capture);
+  els.liveThird.addEventListener('click', capture);
   els.btnNext.addEventListener('click', newRound);
 
   document.addEventListener('visibilitychange', () => {

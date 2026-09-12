@@ -34,36 +34,24 @@
       <div class="third camera-third">
         <video id="camera" autoplay playsinline muted></video>
         <canvas id="sample-canvas" hidden></canvas>
-
-        <div class="camera-overlay">
-          <div class="overlay-top">
-            <div class="proximity-wrap">
-              <div class="proximity-bar">
-                <div id="proximity-fill" class="proximity-fill"></div>
-              </div>
-              <span id="proximity-label" class="proximity-label">Point at something…</span>
-            </div>
-            <button id="btn-quit" class="icon-btn" title="Quit">✕</button>
-          </div>
-
-          <div class="overlay-bottom">
-            <div class="stats-card">
-              <span class="stat-line"><strong id="stat-attempts">0</strong> tries</span>
-              <span class="stat-line"><strong id="stat-rounds">0</strong> found</span>
-            </div>
-            <button id="btn-capture" class="capture-btn" aria-label="Capture color"></button>
-          </div>
-        </div>
+        <button id="btn-quit" class="icon-btn quit-btn" title="Quit">✕</button>
       </div>
 
-      <div class="third color-third" id="live-third">
-        <span class="third-label">Real world</span>
+      <button type="button" class="third color-third live-third" id="live-third" aria-label="Tap to collect this color">
+        <span class="third-label">Real world — tap to collect</span>
         <span id="live-name" class="color-name"></span>
-      </div>
+      </button>
 
-      <div class="third color-third" id="target-third">
-        <span class="third-label">Find this color</span>
-        <span id="target-name" class="color-name"></span>
+      <div class="third bottom-third">
+        <div class="half goal-half" id="target-third">
+          <span class="third-label">Goal</span>
+          <span id="target-name" class="color-name"></span>
+        </div>
+        <div class="half collected-half" id="collected-half">
+          <span class="third-label">Collected</span>
+          <span id="collected-name" class="color-name">—</span>
+          <span class="tries-label"><strong id="stat-attempts">0</strong> tries</span>
+        </div>
       </div>
 
     </div>
