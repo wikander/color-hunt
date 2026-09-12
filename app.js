@@ -82,8 +82,82 @@
     return Math.sqrt(dr * dr + dg * dg + db * db);
   }
 
-  function averageColor(a, b) {
-    return { r: (a.r + b.r) / 2, g: (a.g + b.g) / 2, b: (a.b + b.b) / 2 };
+  function clampByte(v) {
+    return Math.min(255, Math.max(0, v));
+  }
+
+  // Converts a display RGB color into an approximate Red-Yellow-Blue
+  // "paint" space, mirroring how pigments (not light) combine. Plain RGB
+  // averaging can't produce blue+yellow=green because it never moves
+  // energy between channels; this can, since it's built by shuffling
+  // channel overlaps (e.g. the R/G overlap read as "yellow") rather than
+  // averaging channels independently.
+  function rgbToRyb(r, g, b) {
+    const w = Math.min(r, g, b);
+    r -= w; g -= w; b -= w;
+    const maxRgb = Math.max(r, g, b);
+
+    const y = Math.min(r, g);
+    r -= y; g -= y;
+
+    // leftover red+green ("cyan-ish") light has to be split between the
+    // yellow and blue pigment outputs, or it'd be double-counted.
+    if (b > 0 && g > 0) {
+      b /= 2; g /= 2;
+    }
+
+    let Y = y + g;
+    let B = b + g;
+    let R = r;
+
+    const maxRyb = Math.max(R, Y, B);
+    if (maxRyb > 0) {
+      const scale = maxRgb / maxRyb;
+      R *= scale; Y *= scale; B *= scale;
+    }
+
+    return { r: R + w, y: Y + w, b: B + w };
+  }
+
+  // Inverse of rgbToRyb: turns mixed paint back into a display color.
+  function rybToRgb(r, y, b) {
+    const w = Math.min(r, y, b);
+    r -= w; y -= w; b -= w;
+    const maxRyb = Math.max(r, y, b);
+
+    // yellow+blue pigment overlap reads as green light.
+    const g = Math.min(y, b);
+    y -= g; b -= g;
+
+    // leftover yellow pigment looks like red+green light; leftover blue
+    // pigment looks like blue light only.
+    let R = r + y;
+    let G = g + y;
+    let B = b;
+
+    const maxRgb = Math.max(R, G, B);
+    if (maxRgb > 0) {
+      const scale = maxRyb / maxRgb;
+      R *= scale; G *= scale; B *= scale;
+    }
+
+    return {
+      r: clampByte(R + w),
+      g: clampByte(G + w),
+      b: clampByte(B + w),
+    };
+  }
+
+  // Blends two real-world colors the way watercolors mix on paper,
+  // rather than just averaging their RGB channels.
+  function blendColors(a, b) {
+    const rybA = rgbToRyb(a.r, a.g, a.b);
+    const rybB = rgbToRyb(b.r, b.g, b.b);
+    return rybToRgb(
+      (rybA.r + rybB.r) / 2,
+      (rybA.y + rybB.y) / 2,
+      (rybA.b + rybB.b) / 2
+    );
   }
 
   // Picks black or white text so labels stay legible against any background color.
@@ -225,7 +299,7 @@
     // whatever is currently collected (or just the live color if nothing
     // has been collected yet this round).
     const blendPreview = state.collectedColor
-      ? averageColor(state.liveColor, state.collectedColor)
+      ? blendColors(state.liveColor, state.collectedColor)
       : state.liveColor;
     els.blendBtn.style.background = rgbToCss(blendPreview);
     els.blendBtn.style.color = contrastingTextColor(blendPreview);
@@ -287,7 +361,7 @@
   function blend() {
     if (!state.liveColor) return;
     const next = state.collectedColor
-      ? averageColor(state.liveColor, state.collectedColor)
+      ? blendColors(state.liveColor, state.collectedColor)
       : state.liveColor;
     commitCollectedColor(next, els.blendBtn);
   }
