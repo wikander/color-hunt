@@ -1,0 +1,326 @@
+(() => {
+  'use strict';
+
+  // ---------- Config ----------
+
+  // Max possible RGB Euclidean distance is sqrt(255^2*3) ≈ 441.7.
+  // Threshold = how close (in that distance) an attempt must be to count as a match.
+  const DIFFICULTY_THRESHOLDS = {
+    easy: 130,
+    medium: 75,
+    hard: 40,
+  };
+
+  const SAMPLE_INTERVAL_MS = 150;
+  const SAMPLE_WIDTH = 48;
+  const SAMPLE_HEIGHT = 36;
+  const HISTOGRAM_BITS = 4; // per channel -> 16 levels/channel, 4096 bins
+
+  // A modest palette of everyday color names, used only to give kids a
+  // friendly label next to each swatch (nearest-neighbor by RGB distance).
+  const NAMED_COLORS = [
+    ['Red', [220, 20, 60]], ['Orange', [255, 140, 0]], ['Yellow', [255, 215, 0]],
+    ['Lime', [180, 220, 40]], ['Green', [34, 139, 34]], ['Teal', [0, 150, 140]],
+    ['Cyan', [0, 200, 220]], ['Sky Blue', [80, 170, 230]], ['Blue', [30, 80, 210]],
+    ['Purple', [130, 60, 200]], ['Magenta', [220, 40, 190]], ['Pink', [255, 130, 180]],
+    ['Brown', [140, 90, 50]], ['Beige', [230, 210, 170]], ['White', [245, 245, 245]],
+    ['Gray', [130, 130, 130]], ['Black', [20, 20, 20]],
+  ];
+
+  const STORAGE_KEY = 'color-hunt-stats-v1';
+
+  // ---------- State ----------
+
+  const state = {
+    difficulty: 'medium',
+    target: null,        // {r,g,b}
+    liveColor: null,     // {r,g,b}
+    attempts: 0,
+    bestAttemptDistance: Infinity,
+    stream: null,
+    sampleTimer: null,
+  };
+
+  const stats = loadStats();
+
+  // ---------- Elements ----------
+
+  const els = {
+    screenStart: document.getElementById('screen-start'),
+    screenGame: document.getElementById('screen-game'),
+    diffButtons: document.querySelectorAll('.diff-btn'),
+    btnStart: document.getElementById('btn-start'),
+    startError: document.getElementById('start-error'),
+
+    video: document.getElementById('camera'),
+    canvas: document.getElementById('sample-canvas'),
+
+    targetSwatch: document.getElementById('target-swatch'),
+    targetName: document.getElementById('target-name'),
+    liveSwatch: document.getElementById('live-swatch'),
+    liveName: document.getElementById('live-name'),
+
+    proximityFill: document.getElementById('proximity-fill'),
+    proximityLabel: document.getElementById('proximity-label'),
+
+    btnCapture: document.getElementById('btn-capture'),
+    btnQuit: document.getElementById('btn-quit'),
+
+    statAttempts: document.getElementById('stat-attempts'),
+    statRounds: document.getElementById('stat-rounds'),
+
+    winOverlay: document.getElementById('win-overlay'),
+    winAttempts: document.getElementById('win-attempts'),
+    winBest: document.getElementById('win-best'),
+    btnNext: document.getElementById('btn-next'),
+  };
+
+  const ctx = els.canvas.getContext('2d', { willReadFrequently: true });
+  els.canvas.width = SAMPLE_WIDTH;
+  els.canvas.height = SAMPLE_HEIGHT;
+
+  // ---------- Color helpers ----------
+
+  function rgbToCss({ r, g, b }) {
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  function colorDistance(a, b) {
+    const dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
+    return Math.sqrt(dr * dr + dg * dg + db * db);
+  }
+
+  function randomColor() {
+    return {
+      r: Math.floor(Math.random() * 256),
+      g: Math.floor(Math.random() * 256),
+      b: Math.floor(Math.random() * 256),
+    };
+  }
+
+  function nearestColorName({ r, g, b }) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const [name, [nr, ng, nb]] of NAMED_COLORS) {
+      const d = (r - nr) ** 2 + (g - ng) ** 2 + (b - nb) ** 2;
+      if (d < bestDist) { bestDist = d; best = name; }
+    }
+    return best;
+  }
+
+  // Extracts the "most apparent" color from an image: pixels are quantized
+  // into coarse RGB bins, the most frequent bin wins, and its member pixels
+  // are averaged for a smooth result. This lets a dominant real-world color
+  // win out while still blending naturally when colors are mixed in view.
+  function dominantColor(imageData) {
+    const data = imageData.data;
+    const shift = 8 - HISTOGRAM_BITS;
+    const bins = new Map();
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const key = ((r >> shift) << (HISTOGRAM_BITS * 2)) | ((g >> shift) << HISTOGRAM_BITS) | (b >> shift);
+      let bin = bins.get(key);
+      if (!bin) {
+        bin = { count: 0, r: 0, g: 0, b: 0 };
+        bins.set(key, bin);
+      }
+      bin.count++;
+      bin.r += r;
+      bin.g += g;
+      bin.b += b;
+    }
+
+    let winner = null;
+    for (const bin of bins.values()) {
+      if (!winner || bin.count > winner.count) winner = bin;
+    }
+    if (!winner) return { r: 128, g: 128, b: 128 };
+
+    return {
+      r: Math.round(winner.r / winner.count),
+      g: Math.round(winner.g / winner.count),
+      b: Math.round(winner.b / winner.count),
+    };
+  }
+
+  // ---------- Stats persistence ----------
+
+  function loadStats() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore corrupted/unavailable storage */ }
+    return { roundsWon: 0, totalAttempts: 0, bestAttempts: null };
+  }
+
+  function saveStats() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+    } catch (e) { /* storage unavailable, ignore */ }
+  }
+
+  // ---------- Difficulty picker ----------
+
+  els.diffButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      els.diffButtons.forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      state.difficulty = btn.dataset.difficulty;
+    });
+  });
+
+  // ---------- Camera setup ----------
+
+  async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Camera access is not supported in this browser.');
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false,
+    });
+    state.stream = stream;
+    els.video.srcObject = stream;
+    await els.video.play();
+  }
+
+  function stopCamera() {
+    if (state.stream) {
+      state.stream.getTracks().forEach((t) => t.stop());
+      state.stream = null;
+    }
+  }
+
+  function sampleFrame() {
+    if (els.video.readyState < 2) return;
+    ctx.drawImage(els.video, 0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT);
+    const imageData = ctx.getImageData(0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT);
+    state.liveColor = dominantColor(imageData);
+    renderLiveColor();
+  }
+
+  // ---------- Rendering ----------
+
+  function renderTarget() {
+    els.targetSwatch.style.background = rgbToCss(state.target);
+    els.targetName.textContent = nearestColorName(state.target);
+  }
+
+  function renderLiveColor() {
+    if (!state.liveColor) return;
+    els.liveSwatch.style.background = rgbToCss(state.liveColor);
+    els.liveName.textContent = nearestColorName(state.liveColor);
+
+    const dist = colorDistance(state.liveColor, state.target);
+    const threshold = DIFFICULTY_THRESHOLDS[state.difficulty];
+    const closeness = Math.max(0, Math.min(1, 1 - dist / 441.7));
+    els.proximityFill.style.width = `${Math.round(closeness * 100)}%`;
+
+    if (dist <= threshold) {
+      els.proximityLabel.textContent = '🔥 Right there — capture it!';
+    } else if (dist <= threshold * 1.6) {
+      els.proximityLabel.textContent = 'Getting warmer…';
+    } else if (dist <= threshold * 2.6) {
+      els.proximityLabel.textContent = 'Keep looking…';
+    } else {
+      els.proximityLabel.textContent = 'Cold — try somewhere else';
+    }
+  }
+
+  function renderStats() {
+    els.statAttempts.textContent = state.attempts;
+    els.statRounds.textContent = stats.roundsWon;
+  }
+
+  // ---------- Game flow ----------
+
+  function newRound() {
+    state.target = randomColor();
+    state.attempts = 0;
+    renderTarget();
+    renderStats();
+    els.winOverlay.hidden = true;
+  }
+
+  function capture() {
+    if (!state.liveColor || els.winOverlay.hidden === false) return;
+    state.attempts++;
+    stats.totalAttempts++;
+    renderStats();
+
+    const dist = colorDistance(state.liveColor, state.target);
+    const threshold = DIFFICULTY_THRESHOLDS[state.difficulty];
+
+    if (dist <= threshold) {
+      onRoundWon();
+    } else {
+      els.btnCapture.animate(
+        [{ transform: 'scale(1)' }, { transform: 'scale(0.85)' }, { transform: 'scale(1)' }],
+        { duration: 220 }
+      );
+    }
+  }
+
+  function onRoundWon() {
+    stats.roundsWon++;
+    const isNewBest = stats.bestAttempts === null || state.attempts < stats.bestAttempts;
+    if (isNewBest) stats.bestAttempts = state.attempts;
+    saveStats();
+    renderStats();
+
+    els.winAttempts.textContent = state.attempts;
+    els.winBest.textContent = isNewBest
+      ? '🏆 New best score!'
+      : `Best so far: ${stats.bestAttempts} ${stats.bestAttempts === 1 ? 'try' : 'tries'}`;
+    els.winOverlay.hidden = false;
+  }
+
+  // ---------- Screen transitions ----------
+
+  async function goToGame() {
+    els.startError.hidden = true;
+    try {
+      await startCamera();
+    } catch (err) {
+      els.startError.textContent = err && err.message
+        ? `Couldn't access the camera: ${err.message}`
+        : 'Couldn\'t access the camera. Please allow camera permission and try again.';
+      els.startError.hidden = false;
+      return;
+    }
+
+    els.screenStart.hidden = true;
+    els.screenGame.hidden = false;
+
+    newRound();
+
+    state.sampleTimer = setInterval(sampleFrame, SAMPLE_INTERVAL_MS);
+  }
+
+  function goToStart() {
+    if (state.sampleTimer) {
+      clearInterval(state.sampleTimer);
+      state.sampleTimer = null;
+    }
+    stopCamera();
+    els.screenGame.hidden = true;
+    els.winOverlay.hidden = true;
+    els.screenStart.hidden = false;
+  }
+
+  // ---------- Wire up events ----------
+
+  els.btnStart.addEventListener('click', goToGame);
+  els.btnQuit.addEventListener('click', goToStart);
+  els.btnCapture.addEventListener('click', capture);
+  els.btnNext.addEventListener('click', newRound);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.stream) {
+      state.stream.getTracks().forEach((t) => (t.enabled = false));
+    } else if (!document.hidden && state.stream) {
+      state.stream.getTracks().forEach((t) => (t.enabled = true));
+    }
+  });
+})();
