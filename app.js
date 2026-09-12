@@ -24,17 +24,6 @@
   const SMOOTH_ALPHA_FAST = 0.5;
   const SMOOTH_JUMP_DISTANCE = 60;
 
-  // A modest palette of everyday color names, used only to give kids a
-  // friendly label next to each swatch (nearest-neighbor by RGB distance).
-  const NAMED_COLORS = [
-    ['Red', [220, 20, 60]], ['Orange', [255, 140, 0]], ['Yellow', [255, 215, 0]],
-    ['Lime', [180, 220, 40]], ['Green', [34, 139, 34]], ['Teal', [0, 150, 140]],
-    ['Cyan', [0, 200, 220]], ['Sky Blue', [80, 170, 230]], ['Blue', [30, 80, 210]],
-    ['Purple', [130, 60, 200]], ['Magenta', [220, 40, 190]], ['Pink', [255, 130, 180]],
-    ['Brown', [140, 90, 50]], ['Beige', [230, 210, 170]], ['White', [245, 245, 245]],
-    ['Gray', [130, 130, 130]], ['Black', [20, 20, 20]],
-  ];
-
   const STORAGE_KEY = 'color-hunt-stats-v1';
 
   // ---------- State ----------
@@ -64,12 +53,8 @@
     canvas: document.getElementById('sample-canvas'),
 
     targetThird: document.getElementById('target-third'),
-    targetName: document.getElementById('target-name'),
     liveThird: document.getElementById('live-third'),
-    liveName: document.getElementById('live-name'),
-
     collectedHalf: document.getElementById('collected-half'),
-    collectedName: document.getElementById('collected-name'),
 
     btnQuit: document.getElementById('btn-quit'),
 
@@ -108,16 +93,6 @@
       g: Math.floor(Math.random() * 256),
       b: Math.floor(Math.random() * 256),
     };
-  }
-
-  function nearestColorName({ r, g, b }) {
-    let best = null;
-    let bestDist = Infinity;
-    for (const [name, [nr, ng, nb]] of NAMED_COLORS) {
-      const d = (r - nr) ** 2 + (g - ng) ** 2 + (b - nb) ** 2;
-      if (d < bestDist) { bestDist = d; best = name; }
-    }
-    return best;
   }
 
   // Extracts the "most apparent" color from an image: pixels are quantized
@@ -234,25 +209,21 @@
   function renderTarget() {
     els.targetThird.style.background = rgbToCss(state.target);
     els.targetThird.style.color = contrastingTextColor(state.target);
-    els.targetName.textContent = nearestColorName(state.target);
   }
 
   function renderLiveColor() {
     if (!state.liveColor) return;
     els.liveThird.style.background = rgbToCss(state.liveColor);
     els.liveThird.style.color = contrastingTextColor(state.liveColor);
-    els.liveName.textContent = nearestColorName(state.liveColor);
   }
 
   function renderCollected() {
     if (state.collectedColor) {
       els.collectedHalf.style.background = rgbToCss(state.collectedColor);
       els.collectedHalf.style.color = contrastingTextColor(state.collectedColor);
-      els.collectedName.textContent = nearestColorName(state.collectedColor);
     } else {
       els.collectedHalf.style.background = '';
       els.collectedHalf.style.color = '';
-      els.collectedName.textContent = '—';
     }
   }
 
